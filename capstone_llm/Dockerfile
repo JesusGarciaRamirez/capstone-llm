@@ -5,3 +5,4 @@ ENV PYSPARK_PYTHON python3
 WORKDIR /opt/spark/work-dir
 
 #TODO add your project code and dependencies to the image
+COPY requirements.txt .
