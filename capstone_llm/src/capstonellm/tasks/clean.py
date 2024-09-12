@@ -1,12 +1,42 @@
 import argparse
 import logging
 from pyspark.sql import SparkSession
+import pyspark.sql.functions as sf
 
 from capstonellm.common.spark import ClosableSparkSession
 
 logger = logging.getLogger(__name__)
 
 def clean(spark: SparkSession, environment: str, tag: str):
+    answers_df = spark.read.json(f"s3a://dataminded-academy-capstone-llm-data-us/input/{tag}/answers.json")
+    questions_df = spark.read.json(f"s3a://dataminded-academy-capstone-llm-data-us/input/{tag}/questions.json")
+    # Explode the 'items' array to create a new row for each element in 'items'
+    exploded_answers_df = answers_df.select(sf.explode(answers_df.items).alias("item"))
+
+    # Select the 'body' field from the exploded 'item' struct
+    answers_body_df = exploded_answers_df.select(
+        sf.col("item.body").alias("answer_body"),
+        "item.question_id"
+        )
+
+    exploded_questions_df = questions_df.select(sf.explode(questions_df.items).alias("item"))
+
+    # Select the 'body' field from the exploded 'item' struct
+    questions_body_df = exploded_questions_df.select(
+            sf.col("item.body").alias("question_body"),
+            "item.question_id"
+        )
+    clean_df = answers_body_df.join(questions_body_df, on="question_id")
+    df_with_concat = (clean_df
+                    .withColumn("body", sf.concat("question_body", sf.lit(" "), "answer_body"))
+                    .select("body")
+                )
+
+    # Repartition to create separate files (1 row per partition)
+    df_partitioned = df_with_concat.repartition(df_with_concat.count())  # repartitioning to have 1 row per partition (optional)
+
+    # Save the DataFrame as JSON files in the directory
+    df_partitioned.write.mode("overwrite").json(f"s3a://dataminded-academy-capstone-llm-data-us/cleaned/{tag}-MJ/")
     pass
 
 def main():
