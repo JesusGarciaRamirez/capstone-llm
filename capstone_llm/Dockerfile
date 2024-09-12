@@ -6,3 +6,11 @@ WORKDIR /opt/spark/work-dir
 
 #TODO add your project code and dependencies to the image
 COPY requirements.txt .
+RUN python3 -m pip install --upgrade pip
+RUN python3 -m pip install -r requirements.txt
+
+COPY . .
+
+RUN python3 -m pip install -e .
+ENTRYPOINT [ "python3" ]
+CMD [ "-m", "capstonellm.tasks.clean" , "-e", "prod", "-t", "dbt"]
