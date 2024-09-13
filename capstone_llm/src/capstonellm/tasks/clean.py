@@ -8,35 +8,33 @@ from capstonellm.common.spark import ClosableSparkSession
 logger = logging.getLogger(__name__)
 
 def clean(spark: SparkSession, environment: str, tag: str):
-    answers_df = spark.read.json(f"s3a://dataminded-academy-capstone-llm-data-us/input/{tag}/answers.json")
-    questions_df = spark.read.json(f"s3a://dataminded-academy-capstone-llm-data-us/input/{tag}/questions.json")
-    # Explode the 'items' array to create a new row for each element in 'items'
-    exploded_answers_df = answers_df.select(sf.explode(answers_df.items).alias("item"))
+    llm_bucket = "dataminded-academy-capstone-llm-data-us"
+    questions = spark.read.json(f"s3a://{llm_bucket}/input/{tag}/questions.json")
 
-    # Select the 'body' field from the exploded 'item' struct
-    answers_body_df = exploded_answers_df.select(
-        sf.col("item.body").alias("answer_body"),
-        "item.question_id"
-        )
+    df = questions.withColumn("question", sf.explode("items"))
+    df = df.select("question.*")
+    df = df.select("question_id", "body", "title", "link").withColumnRenamed(
+        "body", "question"
+    )
 
-    exploded_questions_df = questions_df.select(sf.explode(questions_df.items).alias("item"))
+    answers = spark.read.json(f"s3a://{llm_bucket}/input/{tag}/answers.json")
 
-    # Select the 'body' field from the exploded 'item' struct
-    questions_body_df = exploded_questions_df.select(
-            sf.col("item.body").alias("question_body"),
-            "item.question_id"
-        )
-    clean_df = answers_body_df.join(questions_body_df, on="question_id")
-    df_with_concat = (clean_df
-                    .withColumn("body", sf.concat("question_body", sf.lit(" "), "answer_body"))
-                    .select("body")
-                )
+    dfa = answers.withColumn("answer", sf.explode("items"))
+    dfa = dfa.select("answer.*")
+    dfa = dfa.select("question_id", "answer_id", "body").withColumnRenamed(
+        "body", "answer"
+    )
 
-    # Repartition to create separate files (1 row per partition)
-    df_partitioned = df_with_concat.repartition(df_with_concat.count())  # repartitioning to have 1 row per partition (optional)
+    joined = df.join(dfa, "question_id")
+    joined = joined.withColumn("question_id", sf.col("question_id").cast("string"))
+    joined = joined.withColumn("answer_id", sf.col("answer_id").cast("string"))
+    joined.show()
 
-    # Save the DataFrame as JSON files in the directory
-    df_partitioned.write.mode("overwrite").json(f"s3a://dataminded-academy-capstone-llm-data-us/cleaned/{tag}-MJ/")
+    count = joined.count()
+    joined.repartition(count).write.mode("overwrite").json(
+        f"s3a://{llm_bucket}/cleaned/{tag}-MJ/"
+    )
+
     pass
 
 def main():
