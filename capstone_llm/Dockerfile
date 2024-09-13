@@ -12,5 +12,5 @@ RUN python3 -m pip install -r requirements.txt
 COPY . .
 
 RUN python3 -m pip install -e .
-ENTRYPOINT [ "python3" ]
-CMD [ "-m", "capstonellm.tasks.clean" , "-e", "prod", "-t", "dbt"]
+# ENTRYPOINT [ "python3" ]
+# CMD [ "-m", "capstonellm.tasks.clean" , "-e", "prod", "-t", "dbt"]
