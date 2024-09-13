@@ -1,0 +1,15 @@
+docker:
+    path: .
+id: 9bade93b-07bb-4460-82f4-f0a1ad660c4b
+ide:
+    filename: ide.yaml
+name: capstone-mj-correct
+resources:
+    path: resources
+streaming:
+    filename: streaming.yaml
+template: ""
+version: "0.3"
+workflows:
+    path: dags
+    version: "2"
